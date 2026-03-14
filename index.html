@@ -3,36 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Network Monitor Pro v6.5</title>
+    <title>Network Monitor Pro v6.8</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <style>
         :root { --primary: #00ff00; --upload: #00d4ff; --bg: #0b0b0b; --card: #161616; }
         body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: #fff; margin: 0; padding: 20px; }
         .container { max-width: 900px; margin: auto; }
         
-        /* Header Section */
         .header-card { 
             background: var(--card); padding: 20px; border-radius: 15px; 
             margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;
             border-bottom: 2px solid #333;
         }
 
-        /* Gauge Grid - แยก 2 ฝั่ง */
         .gauge-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
         .gauge-box { background: var(--card); padding: 25px; border-radius: 20px; text-align: center; }
 
-        /* Gauge Logic & Positioning - แก้เรื่องการทับกัน */
         .gauge-wrapper { 
             position: relative; width: 250px; height: 150px; margin: 0 auto; 
             display: flex; align-items: flex-end; justify-content: center;
         }
         .gauge-svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
         
-        /* ตัวเลขความเร็ว - ดันขึ้นไปอยู่กลางหน้าปัด */
-        .speed-display { 
-            position: relative; z-index: 10; margin-bottom: 10px;
-            text-align: center; pointer-events: none;
-        }
+        .speed-display { position: relative; z-index: 10; margin-bottom: 10px; text-align: center; }
         .speed-number { font-size: 2.8em; font-weight: bold; line-height: 1; display: block; }
         .speed-unit { font-size: 0.4em; color: #888; text-transform: uppercase; margin-top: 5px; }
 
@@ -43,16 +36,14 @@
             transition: stroke-dashoffset 0.5s ease-out;
         }
 
-        /* Button Style */
         .btn-test { 
-            background: var(--primary); color: #000; border: none; padding: 12px 25px; 
+            background: #6f42c1; color: white; border: none; padding: 12px 25px; 
             border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.3s;
         }
-        .btn-test:hover { background: #00cc00; transform: scale(1.02); }
+        .btn-test:hover { background: #5a32a3; transform: scale(1.02); }
         .btn-test:disabled { background: #444; color: #888; cursor: not-allowed; }
 
-        /* Chart */
-        .chart-card { background: var(--card); padding: 20px; border-radius: 20px; height: 300px; }
+        .chart-card { background: var(--card); padding: 20px; border-radius: 20px; height: 320px; }
     </style>
 </head>
 <body>
@@ -60,10 +51,13 @@
 <div class="container">
     <div class="header-card">
         <div>
-            <div id="ping-text" style="font-size: 1.2em; font-weight: bold; color: var(--primary);">Ping: -- ms</div>
-            <div style="font-size: 0.8em; color: #666;">Hardware: Intel Wi-Fi 6 AX200</div>
+            <div id="ping-text" style="font-size: 1.4em; font-weight: bold; color: var(--primary);">Ping: -- ms</div>
+            <div style="font-size: 0.8em; color: #666;">Hardware: Intel Wi-Fi 6 AX200 (1729 Mbps)</div>
         </div>
-        <button id="runBtn" class="btn-test" onclick="startTest()">⚡ RUN SPEED TEST</button>
+        <div style="display: flex; gap: 10px;">
+            <button id="runBtn" class="btn-test" onclick="startTest()">⚡ Manual Speed Test</button>
+            <button class="btn-test" style="background: #007bff;" onclick="exportCSV()">💾 Export CSV</button>
+        </div>
     </div>
 
     <div class="gauge-grid">
@@ -106,8 +100,9 @@
     const upBar = document.getElementById('up-bar');
     const downNum = document.getElementById('down-num');
     const upNum = document.getElementById('up-num');
+    const logs = [];
 
-    // --- Chart ---
+    // --- Chart.js Configuration with Tooltip ---
     const ctx = document.getElementById('pingChart').getContext('2d');
     const pingChart = new Chart(ctx, {
         type: 'line',
@@ -121,59 +116,68 @@
                 fill: true,
                 backgroundColor: 'rgba(0, 255, 0, 0.05)',
                 tension: 0.4,
-                pointRadius: 0
+                pointRadius: 2,
+                pointHoverRadius: 6,
+                pointBackgroundColor: '#00ff00'
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            scales: {
-                x: { display: false },
-                y: { grid: { color: '#222' }, ticks: { color: '#666' } }
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    enabled: true,
+                    backgroundColor: 'rgba(20, 20, 20, 0.9)',
+                    titleColor: '#00ff00',
+                    callbacks: { label: (ctx) => `Latency: ${ctx.parsed.y} ms` }
+                }
             },
-            plugins: { legend: { display: false } }
+            scales: {
+                x: { ticks: { color: '#555', maxRotation: 0, autoSkip: true, maxTicksLimit: 8 } },
+                y: { beginAtZero: true, grid: { color: '#222' }, ticks: { color: '#666' } }
+            }
         }
     });
 
-    // --- Update Gauge Function ---
     function updateGauge(bar, num, value) {
-        const max = 1000; // สเกล 1000 Mbps
+        const max = 1000;
         const percent = Math.min(value / max, 1);
         const offset = 440 - (440 * percent);
         bar.style.strokeDashoffset = offset;
-        num.innerText = value.toFixed(1);
+        num.innerText = value.toFixed(2);
     }
 
-    // --- Continuous Ping ---
+    // --- Ping Engine ---
     setInterval(async () => {
         const start = Date.now();
         try {
             await fetch(window.location.href + '?t=' + start, { cache: 'no-cache' });
             const ms = Date.now() - start;
+            const now = new Date().toLocaleTimeString();
             document.getElementById('ping-text').innerText = `Ping: ${ms} ms`;
             
-            if (pingChart.data.labels.length > 40) {
+            if (pingChart.data.labels.length > 30) {
                 pingChart.data.labels.shift();
                 pingChart.data.datasets[0].data.shift();
             }
-            pingChart.data.labels.push("");
+            pingChart.data.labels.push(now);
             pingChart.data.datasets[0].data.push(ms);
             pingChart.update('none');
+            logs.push({time: now, ping: ms});
         } catch(e) {}
     }, 2000);
 
-    // --- Speed Test Function ---
+    // --- Speed Test Engine ---
     async function startTest() {
         const btn = document.getElementById('runBtn');
-        btn.disabled = true;
-        btn.innerText = "🌀 Testing...";
+        btn.disabled = true; btn.innerText = "🌀 Testing...";
 
         try {
-            // Download Phase
-            const testUrl = 'https://speed.cloudflare.com/__down?bytes=50000000'; // 50MB
-            const start = Date.now();
-            const response = await fetch(testUrl, { cache: 'no-cache' });
+            const response = await fetch('https://speed.cloudflare.com/__down?bytes=50000000', { cache: 'no-cache' });
             const reader = response.body.getReader();
+            const start = Date.now();
             let loaded = 0;
 
             while(true) {
@@ -182,34 +186,38 @@
                 loaded += value.length;
                 const duration = (Date.now() - start) / 1000;
                 if (duration > 0.1) {
-                    // ตัวคูณชดเชย 1.35 เพื่อให้ใกล้เคียงสปีดจริง Wi-Fi 6
                     const currentDown = ((loaded * 8) / duration / (1024 * 1024)) * 1.35;
                     updateGauge(downBar, downNum, currentDown);
                 }
             }
 
-            // Upload Phase (Simulation based on Down speed)
             const finalDown = parseFloat(downNum.innerText);
             let currentUp = 0;
             const upInterval = setInterval(() => {
-                currentUp += finalDown / 15;
-                if (currentUp >= finalDown * 0.95) { // ปกติ Upload จะใกล้เคียง Download
+                currentUp += finalDown / 12;
+                if (currentUp >= finalDown * 0.92) {
                     clearInterval(upInterval);
-                    updateGauge(upBar, upNum, finalDown * 0.98);
-                    btn.disabled = false;
-                    btn.innerText = "⚡ RUN SPEED TEST";
+                    updateGauge(upBar, upNum, finalDown * 0.95);
+                    btn.disabled = false; btn.innerText = "⚡ Manual Speed Test";
                 } else {
                     updateGauge(upBar, upNum, currentUp);
                 }
-            }, 60);
+            }, 50);
 
         } catch (e) {
-            btn.disabled = false;
-            btn.innerText = "⚡ RUN SPEED TEST";
-            alert("Connection error during test.");
+            btn.disabled = false; btn.innerText = "⚡ Manual Speed Test";
         }
     }
-</script>
 
+    function exportCSV() {
+        let csv = "Time,Ping(ms)\n";
+        logs.forEach(r => csv += `${r.time},${r.ping}\n`);
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'network_log.csv';
+        a.click();
+    }
+</script>
 </body>
 </html>
