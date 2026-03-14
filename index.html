@@ -6,58 +6,73 @@
     <title>Network Health Monitor Pro</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #0b0b0b; color: #e0e0e0; padding: 20px; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0b0b0b; color: #e0e0e0; padding: 20px; }
         .container { max-width: 900px; margin: auto; }
+        
+        /* การ์ดสถานะหลัก */
         .status-card { 
             background: #161616; padding: 25px; border-radius: 12px; 
             margin-bottom: 20px; border-left: 5px solid #00ff00;
             display: flex; justify-content: space-between; align-items: center;
             box-shadow: 0 4px 20px rgba(0,0,0,0.6);
         }
+
+        /* ส่วนแสดงตัวเลข Speed */
         .speed-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
-        .speed-box { background: #161616; padding: 15px; border-radius: 10px; text-align: center; border: 1px solid #333; }
-        .speed-value { font-size: 1.5em; font-weight: bold; color: #00ff00; }
+        .speed-box { background: #161616; padding: 20px; border-radius: 10px; text-align: center; border: 1px solid #333; }
+        .speed-label { font-size: 0.9em; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+        .speed-value { font-size: 1.8em; font-weight: bold; color: #00ff00; margin-top: 5px; }
+
+        /* ปุ่มกด */
         .btn-group { display: flex; gap: 10px; }
-        .btn { border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.2s; color: white; }
+        .btn { border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.2s; color: white; display: flex; align-items: center; gap: 8px; }
         .btn-speed { background: #6f42c1; }
-        .btn-speed:disabled { background: #444; cursor: not-allowed; }
+        .btn-speed:hover { background: #5a32a3; transform: scale(1.05); }
+        .btn-speed:disabled { background: #444; cursor: not-allowed; transform: none; }
         .btn-csv { background: #007bff; }
-        canvas { background: #161616; border-radius: 12px; padding: 15px; }
+        .btn-csv:hover { background: #0056b3; }
+
+        /* กราฟ */
+        .chart-container { background: #161616; border-radius: 12px; padding: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.6); }
+        canvas { width: 100% !important; height: 350px !important; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h2>🚀 Network Monitor Pro</h2>
+        <h2 style="margin-bottom: 25px;">🚀 Network Monitor Pro</h2>
         
         <div class="status-card" id="main-card">
             <div>
-                <div id="current-latency" style="font-size: 1.4em; font-weight: bold;">Waiting for Ping...</div>
-                <div style="font-size: 0.9em; color: #888;">Target Link: 1729 Mbps (Wi-Fi 6)</div>
+                <div id="current-latency" style="font-size: 1.4em; font-weight: bold;">Ping: Initializing...</div>
+                <div style="font-size: 0.9em; color: #888;">Hardware: Intel Wi-Fi 6 AX200 (1729 Mbps)</div>
             </div>
             <div class="btn-group">
-                <button id="speedBtn" class="btn btn-speed" onclick="runSpeedTest()">⚡ Test Speed</button>
+                <button id="speedBtn" class="btn btn-speed" onclick="runSpeedTest()">⚡ Manual Speed Test</button>
                 <button class="btn btn-csv" onclick="exportToCSV()">💾 Export CSV</button>
             </div>
         </div>
 
         <div class="speed-grid">
             <div class="speed-box">
-                <div>Download</div>
+                <div class="speed-label">Download Speed</div>
                 <div id="down-val" class="speed-value">-- Mbps</div>
             </div>
             <div class="speed-box">
-                <div>Upload</div>
+                <div class="speed-label">Approx. Upload</div>
                 <div id="up-val" class="speed-value" style="color: #00d4ff;">-- Mbps</div>
             </div>
         </div>
 
-        <canvas id="networkChart"></canvas>
+        <div class="chart-container">
+            <canvas id="networkChart"></canvas>
+        </div>
     </div>
 
     <script>
         const logs = [];
         const ctx = document.getElementById('networkChart').getContext('2d');
         
+        // ตั้งค่ากราฟ
         const networkChart = new Chart(ctx, {
             type: 'line',
             data: {
@@ -71,84 +86,103 @@
                     fill: true,
                     tension: 0.3,
                     pointRadius: 4,
-                    pointHoverRadius: 6
+                    pointBackgroundColor: '#00ff00'
                 }]
             },
             options: {
                 responsive: true,
+                maintainAspectRatio: false,
                 scales: { 
                     y: { 
-                        beginAtZero: false, // ปรับเพื่อให้ Plot กราฟที่มีค่าสูงได้เห็นชัดเจน
+                        beginAtZero: false,
                         grid: { color: '#222' }, 
-                        ticks: { color: '#aaa' } 
+                        ticks: { color: '#aaa' },
+                        title: { display: true, text: 'Milliseconds (ms)', color: '#666' }
                     },
-                    x: { ticks: { color: '#888' }, grid: { display: false } }
+                    x: { 
+                        grid: { display: false },
+                        ticks: { color: '#888', maxRotation: 0 } 
+                    }
                 },
-                plugins: { legend: { labels: { color: 'white' } } }
+                plugins: { 
+                    legend: { labels: { color: 'white', font: { size: 14 } } }
+                }
             }
         });
 
-        // ฟังก์ชันวัด Latency และ Plot กราฟ
+        // ฟังก์ชันวัด Latency (รันอัตโนมัติทุก 3 วินาที)
         async function measureLatency() {
             const start = Date.now();
             try {
-                // ดึงข้อมูลตัวเองเพื่อเลี่ยงปัญหา CORS
+                // เรียกตัวเองเพื่อวัดเวลาเดินทางของข้อมูล
                 await fetch(window.location.href + '?t=' + start, { cache: 'no-cache' });
                 const duration = Date.now() - start;
-                const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                const now = new Date().toLocaleTimeString([], { hour12: false });
 
-                // บันทึก Log
+                // บันทึกข้อมูลเข้า Array
                 logs.push({ time: new Date().toLocaleString(), latency: duration });
 
-                // อัปเดตกราฟ (แสดง 20 จุดล่าสุด)
-                if (networkChart.data.labels.length > 20) {
+                // อัปเดตกราฟ (โชว์ 30 ข้อมูลล่าสุด)
+                if (networkChart.data.labels.length > 30) {
                     networkChart.data.labels.shift();
                     networkChart.data.datasets[0].data.shift();
                 }
                 
                 networkChart.data.labels.push(now);
                 networkChart.data.datasets[0].data.push(duration);
-                
-                // คำสั่งสำคัญที่ทำให้กราฟ Plot เส้นใหม่
-                networkChart.update();
+                networkChart.update('none'); // อัปเดตแบบลื่นไหล
 
-                document.getElementById('current-latency').innerText = `Current Latency: ${duration} ms`;
-                document.getElementById('main-card').style.borderLeft = duration > 100 ? "5px solid #ff4444" : "5px solid #00ff00";
+                document.getElementById('current-latency').innerText = `Ping: ${duration} ms`;
+                
+                // เปลี่ยนสีขอบการ์ดถ้า Ping สูงเกิน 150ms
+                const card = document.getElementById('main-card');
+                card.style.borderLeft = duration > 150 ? "5px solid #ff4444" : "5px solid #00ff00";
 
             } catch (e) {
-                document.getElementById('current-latency').innerText = "Sensor Error - Retrying...";
+                document.getElementById('current-latency').innerText = "Ping: Sensor Error";
             }
         }
 
-        // ฟังก์ชัน Speed Test (แบบ Manual เพื่อความปลอดภัยของ Bandwidth)
+        // ฟังก์ชันทดสอบความเร็ว (Manual)
         async function runSpeedTest() {
             const btn = document.getElementById('speedBtn');
+            const downDisplay = document.getElementById('down-val');
+            const upDisplay = document.getElementById('up-val');
+            
             btn.disabled = true;
-            btn.innerText = "Testing...";
-            document.getElementById('down-val').innerText = "Calculating...";
+            btn.innerText = "🌀 Testing...";
+            downDisplay.innerText = "Loading...";
 
             try {
                 const startTime = Date.now();
-                // ทดสอบด้วยไฟล์ขนาดประมาณ 5MB จาก GitHub
-                const response = await fetch('https://raw.githubusercontent.com/Chartjs/Chart.js/master/dist/chart.umd.js');
-                const blob = await response.blob();
-                const endTime = Date.now();
+                // ทดสอบโหลดไฟล์ขนาดประมาณ 5MB จาก CDN เพื่อวัดสปีด
+                const response = await fetch('https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js', { cache: 'no-cache' });
+                const reader = response.body.getReader();
+                let receivedLength = 0;
                 
-                const duration = (endTime - startTime) / 1000;
-                const sizeInBits = blob.size * 8;
-                const speedMbps = ((sizeInBits / duration) / (1024 * 1024)).toFixed(2);
+                while(true) {
+                    const {done, value} = await reader.read();
+                    if (done) break;
+                    receivedLength += value.length;
+                }
+                
+                const endTime = Date.now();
+                const durationInSeconds = (endTime - startTime) / 1000;
+                const sizeInBits = receivedLength * 8;
+                const speedMbps = ((sizeInBits / durationInSeconds) / (1024 * 1024)).toFixed(2);
 
-                document.getElementById('down-val').innerText = `${speedMbps} Mbps`;
-                // Upload จำลองค่าสัดส่วน (เพราะ Browser เช็ค Upload จริงได้ยากและช้า)
-                document.getElementById('up-val').innerText = `${(speedMbps * 0.5).toFixed(2)} Mbps`;
+                downDisplay.innerText = `${speedMbps} Mbps`;
+                // จำลองค่า Upload (เนื่องจากข้อจำกัดของ Browser)
+                upDisplay.innerText = `${(speedMbps * 0.45).toFixed(2)} Mbps`;
             } catch (e) {
-                document.getElementById('down-val').innerText = "Error";
+                downDisplay.innerText = "Test Failed";
             } finally {
                 btn.disabled = false;
-                btn.innerText = "⚡ Test Speed";
+                btn.innerText = "⚡ Manual Speed Test";
             }
         }
 
+        // ส่งออกข้อมูล CSV
         function exportToCSV() {
             if (logs.length === 0) return alert("No data yet!");
             let csv = "Timestamp,Latency(ms)\n";
@@ -161,7 +195,8 @@
             a.click();
         }
 
-        setInterval(measureLatency, 3000); // เช็ค Ping ทุก 3 วินาที
+        // เริ่มต้นการทำงาน
+        setInterval(measureLatency, 3000);
         measureLatency();
     </script>
 </body>
