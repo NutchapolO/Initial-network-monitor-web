@@ -6,36 +6,27 @@
     <title>Network Health Monitor</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #121212; color: white; padding: 20px; overflow-x: hidden; }
+        body { font-family: 'Segoe UI', sans-serif; background: #121212; color: white; padding: 20px; }
         .container { max-width: 900px; margin: auto; }
         .status-card { 
             background: #1e1e1e; padding: 25px; border-radius: 12px; 
             margin-bottom: 20px; border-left: 5px solid #00ff00;
             display: flex; justify-content: space-between; align-items: center;
             box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-            transition: 0.3s;
         }
-        .btn-export {
-            background: #007bff; color: white; border: none; padding: 12px 20px;
-            border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.2s;
-        }
-        .btn-export:hover { background: #0056b3; transform: translateY(-2px); }
-        .chart-container { background: #1e1e1e; border-radius: 12px; padding: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
-        .info-text { font-size: 0.9em; color: #aaa; margin-top: 5px; }
+        .btn-export { background: #007bff; color: white; border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        .chart-container { background: #1e1e1e; border-radius: 12px; padding: 15px; }
         #current-speed { font-size: 1.4em; font-weight: bold; }
-        .pulse { animation: pulse-animation 2s infinite; }
-        @keyframes pulse-animation { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+        .info-text { font-size: 0.9em; color: #aaa; margin-top: 5px; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h2 style="display: flex; align-items: center; gap: 10px;">
-            <span class="pulse">🌐</span> Network Monitor Dashboard
-        </h2>
+        <h2>🌐 Network Monitor Dashboard</h2>
         <div class="status-card" id="main-card">
             <div>
                 <div id="current-speed">Connecting to Sensor...</div>
-                <div class="info-text">Target Link: 1729 Mbps (Wi-Fi 6 AX200)</div>
+                <div class="info-text">Target Link: 1729 Mbps (Wi-Fi 6)</div>
             </div>
             <button class="btn-export" onclick="exportToCSV()">💾 Export CSV</button>
         </div>
@@ -48,7 +39,6 @@
         const logs = [];
         const ctx = document.getElementById('networkChart').getContext('2d');
         
-        // สร้างกราฟ
         const networkChart = new Chart(ctx, {
             type: 'line',
             data: {
@@ -58,26 +48,17 @@
                     data: [],
                     borderColor: '#00ff00',
                     backgroundColor: 'rgba(0, 255, 0, 0.1)',
-                    borderWidth: 2,
                     fill: true,
                     tension: 0.4,
-                    pointRadius: 3,
-                    pointBackgroundColor: '#00ff00'
+                    pointRadius: 2
                 }]
             },
             options: {
                 responsive: true,
-                plugins: { 
-                    legend: { labels: { color: 'white', font: { size: 14 } } }
-                },
+                plugins: { legend: { labels: { color: 'white' } } },
                 scales: { 
-                    y: { 
-                        beginAtZero: true, 
-                        grid: { color: '#333' }, 
-                        ticks: { color: '#888' },
-                        title: { display: true, text: 'Milliseconds (ms)', color: '#666' }
-                    },
-                    x: { grid: { display: false }, ticks: { color: '#888' } }
+                    y: { beginAtZero: true, grid: { color: '#333' }, ticks: { color: '#888' } },
+                    x: { ticks: { color: '#888' } }
                 }
             }
         });
@@ -85,9 +66,9 @@
         async function measureLatency() {
             const start = Date.now();
             try {
-                // ใช้การดึงไฟล์ index.html ของตัวเองแทน เพื่อความชัวร์ว่าไฟล์มีอยู่จริง
-                // เพิ่ม cache buster (?t=) เพื่อไม่ให้ค่า latency โดนหลอกโดย browser cache
-                const response = await fetch(window.location.pathname + '?t=' + start, { 
+                // วิธีแก้ปัญหา Sensor Error: ดึง URL ปัจจุบันของหน้าเว็บตรงๆ 
+                // window.location.href จะได้ https://nutchapolo.github.io/Initial-network-monitor-web/ แน่นอน
+                await fetch(window.location.href, { 
                     mode: 'same-origin', 
                     cache: 'no-cache' 
                 });
@@ -97,8 +78,7 @@
 
                 logs.push({ time: new Date().toLocaleString(), latency: duration });
 
-                // อัปเดตกราฟ (แสดง 40 จุดล่าสุดเพื่อให้เห็นเทรนด์ชัดเจน)
-                if (networkChart.data.labels.length > 40) {
+                if (networkChart.data.labels.length > 50) {
                     networkChart.data.labels.shift();
                     networkChart.data.datasets[0].data.shift();
                 }
@@ -107,47 +87,35 @@
                 networkChart.data.datasets[0].data.push(duration);
                 networkChart.data.update('none');
 
-                const card = document.getElementById('main-card');
-                const statusText = document.getElementById('current-speed');
-                
-                statusText.innerText = `Current Latency: ${duration} ms`;
-
-                // เปลี่ยนสีตามคุณภาพสัญญาณ
-                if (duration > 150) {
-                    card.style.borderLeft = "5px solid #ff4444";
-                    networkChart.data.datasets[0].borderColor = '#ff4444';
-                } else if (duration > 80) {
-                    card.style.borderLeft = "5px solid #ffbb33";
-                    networkChart.data.datasets[0].borderColor = '#ffbb33';
-                } else {
-                    card.style.borderLeft = "5px solid #00ff00";
-                    networkChart.data.datasets[0].borderColor = '#00ff00';
-                }
+                document.getElementById('current-speed').innerText = `Current Latency: ${duration} ms`;
+                document.getElementById('main-card').style.borderLeft = duration > 150 ? "5px solid #ff4444" : "5px solid #00ff00";
 
             } catch (e) {
-                document.getElementById('current-speed').innerText = "Sensor Offline - Retrying...";
-                console.error("Ping Error:", e);
+                // ถ้ายังไม่ได้ ให้ลองดึง Path สั้นๆ
+                try {
+                    await fetch('index.html', { cache: 'no-cache' });
+                    const duration = Date.now() - start;
+                    document.getElementById('current-speed').innerText = `Current Latency: ${duration} ms (Fallback)`;
+                } catch (err) {
+                    document.getElementById('current-speed').innerText = "Sensor Error - Retrying...";
+                }
             }
         }
 
         function exportToCSV() {
-            if (logs.length === 0) return alert("No data recorded yet.");
+            if (logs.length === 0) return;
             let csvContent = "data:text/csv;charset=utf-8,Timestamp,Latency(ms)\n";
-            logs.forEach(log => {
-                csvContent += `${log.time},${log.latency}\n`;
-            });
+            logs.forEach(log => { csvContent += `${log.time},${log.latency}\n`; });
             const encodedUri = encodeURI(csvContent);
             const link = document.createElement("a");
             link.setAttribute("href", encodedUri);
-            link.setAttribute("download", `network_report_${new Date().getTime()}.csv`);
+            link.setAttribute("download", "network_log.csv");
             document.body.appendChild(link);
             link.click();
-            document.body.removeChild(link);
         }
 
-        // วัดผลทุกๆ 3 วินาที
-        setInterval(measureLatency, 3000);
-        measureLatency(); // เรียกครั้งแรกทันที
+        setInterval(measureLatency, 2000); // เช็คทุก 2 วินาทีให้กราฟวิ่งเร็วขึ้นหน่อย
+        measureLatency();
     </script>
 </body>
 </html>
