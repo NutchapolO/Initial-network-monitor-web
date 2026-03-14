@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Network Health Monitor</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #121212; color: white; padding: 20px; }
+        .container { max-width: 800px; margin: auto; }
+        .status-card { background: #1e1e1e; padding: 20px; border-radius: 10px; margin-bottom: 20px; border-left: 5px solid #00ff00; }
+        canvas { background: #1e1e1e; border-radius: 10px; padding: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>🌐 Network Monitor Dashboard</h2>
+        <div class="status-card">
+            <div id="current-speed">Checking Connection...</div>
+            <div id="link-speed">Target Link: 1729 Mbps</div>
+        </div>
+        <canvas id="networkChart"></canvas>
+    </div>
+
+    <script>
+        const ctx = document.getElementById('networkChart').getContext('2d');
+        const networkChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Latency (ms)',
+                    data: [],
+                    borderColor: '#00ff00',
+                    tension: 0.1
+                }]
+            },
+            options: { scales: { y: { beginAtZero: true } } }
+        });
+
+        async function measureLatency() {
+            const start = Date.now();
+            try {
+                // ยิงไปที่ไฟล์เล็กๆ หรือ API เพื่อเช็คความเร็ว
+                await fetch('https://www.google.com/favicon.ico', { mode: 'no-cors', cache: 'no-cache' });
+                const duration = Date.now() - start;
+                
+                // อัปเดตกราฟ
+                const now = new Date().toLocaleTimeString();
+                if (networkChart.data.labels.length > 20) {
+                    networkChart.data.labels.shift();
+                    networkChart.data.datasets[0].data.shift();
+                }
+                networkChart.data.labels.push(now);
+                networkChart.data.datasets[0].data.push(duration);
+                networkChart.data.update();
+
+                document.getElementById('current-speed').innerText = `Current Latency: ${duration} ms`;
+            } catch (e) {
+                document.getElementById('current-speed').innerText = "Connection Lost!";
+            }
+        }
+
+        setInterval(measureLatency, 5000); // เช็คทุก 5 วินาที
+    </script>
+</body>
+</html>
