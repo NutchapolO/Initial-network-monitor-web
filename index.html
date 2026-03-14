@@ -6,19 +6,22 @@
     <title>Network Health Monitor</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #121212; color: white; padding: 20px; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #121212; color: white; padding: 20px; }
         .container { max-width: 900px; margin: auto; }
         .status-card { 
-            background: #1e1e1e; padding: 20px; border-radius: 10px; 
+            background: #1e1e1e; padding: 25px; border-radius: 12px; 
             margin-bottom: 20px; border-left: 5px solid #00ff00;
             display: flex; justify-content: space-between; align-items: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
         }
         .btn-export {
-            background: #007bff; color: white; border: none; padding: 10px 20px;
-            border-radius: 5px; cursor: pointer; font-weight: bold;
+            background: #007bff; color: white; border: none; padding: 12px 20px;
+            border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.2s;
         }
-        .btn-export:hover { background: #0056b3; }
-        canvas { background: #1e1e1e; border-radius: 10px; padding: 15px; }
+        .btn-export:hover { background: #0056b3; transform: translateY(-2px); }
+        canvas { background: #1e1e1e; border-radius: 12px; padding: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
+        .info-text { font-size: 0.9em; color: #aaa; margin-top: 5px; }
+        #current-speed { font-size: 1.4em; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -26,17 +29,18 @@
         <h2>🌐 Network Monitor Dashboard</h2>
         <div class="status-card">
             <div>
-                <div id="current-speed" style="font-size: 1.2em; font-weight: bold;">Checking...</div>
-                <div id="link-speed" style="color: #aaa;">Target Link: 1729 Mbps</div>
+                <div id="current-speed">Initializing...</div>
+                <div class="info-text">Target Link: 1729 Mbps (Wi-Fi 6)</div>
             </div>
-            <button class="btn-export" onclick="exportToCSV()">💾 Export CSV</button>
+            <button class="btn-export" onclick="exportToCSV()">💾 Export Log (CSV)</button>
         </div>
         <canvas id="networkChart"></canvas>
     </div>
 
     <script>
-        const logs = []; // เก็บข้อมูลไว้สำหรับ Export
+        const logs = [];
         const ctx = document.getElementById('networkChart').getContext('2d');
+        
         const networkChart = new Chart(ctx, {
             type: 'line',
             data: {
@@ -46,15 +50,18 @@
                     data: [],
                     borderColor: '#00ff00',
                     backgroundColor: 'rgba(0, 255, 0, 0.1)',
+                    borderWidth: 2,
                     fill: true,
-                    tension: 0.3
+                    tension: 0.4,
+                    pointRadius: 2
                 }]
             },
             options: {
                 responsive: true,
+                plugins: { legend: { labels: { color: 'white' } } },
                 scales: { 
-                    y: { beginAtZero: true, grid: { color: '#333' } },
-                    x: { grid: { display: false } }
+                    y: { beginAtZero: true, grid: { color: '#333' }, ticks: { color: '#888' } },
+                    x: { grid: { display: false }, ticks: { color: '#888' } }
                 }
             }
         });
@@ -62,34 +69,43 @@
         async function measureLatency() {
             const start = Date.now();
             try {
-                // ใช้ Cloudflare trace เพื่อเลี่ยง CORS และตรวจสอบความเสถียร
-                // await fetch('https://1.1.1.1/cdn-cgi/trace', { mode: 'no-cors', cache: 'no-cache' });
-                await fetch('https://nutchapolomm.github.io/favicon.ico', { mode: 'no-cors', cache: 'no-cache' });
+                // แก้ปัญหา Offline/Blocked โดยการดึงไฟล์จาก Domain ตัวเอง
+                // หมายเหตุ: ต้องมีไฟล์ favicon.ico หรือรูปภาพชื่อนี้ใน Repo
+                await fetch('https://nutchapolomm.github.io/favicon.ico', { 
+                    mode: 'no-cors', 
+                    cache: 'no-cache' 
+                });
+                
                 const duration = Date.now() - start;
                 const now = new Date().toLocaleTimeString();
 
-                // บันทึกข้อมูลเข้า Array
+                // บันทึกข้อมูล
                 logs.push({ time: new Date().toLocaleString(), latency: duration });
 
-                // อัปเดตกราฟ (โชว์ 40 จุดล่าสุด)
-                if (networkChart.data.labels.length > 40) {
+                // อัปเดต UI และกราฟ (แสดง 50 จุดล่าสุด)
+                if (networkChart.data.labels.length > 50) {
                     networkChart.data.labels.shift();
                     networkChart.data.datasets[0].data.shift();
                 }
+                
                 networkChart.data.labels.push(now);
                 networkChart.data.datasets[0].data.push(duration);
-                networkChart.data.update('none'); // update แบบนิ่มนวล
+                networkChart.data.update('none');
 
                 const card = document.querySelector('.status-card');
                 document.getElementById('current-speed').innerText = `Current Latency: ${duration} ms`;
-                card.style.borderLeft = duration > 100 ? "5px solid #ff4444" : "5px solid #00ff00";
+                
+                // แจ้งเตือนด้วยสีถ้าเน็ตเริ่มช้า (Latency > 150ms)
+                card.style.borderLeft = duration > 150 ? "5px solid #ff4444" : "5px solid #00ff00";
 
             } catch (e) {
-                document.getElementById('current-speed').innerText = "Offline / Blocked";
+                document.getElementById('current-speed').innerText = "Sensor Error (Check Repo)";
+                console.error(e);
             }
         }
 
         function exportToCSV() {
+            if (logs.length === 0) return alert("No data to export yet!");
             let csvContent = "data:text/csv;charset=utf-8,Timestamp,Latency(ms)\n";
             logs.forEach(log => {
                 csvContent += `${log.time},${log.latency}\n`;
@@ -97,12 +113,15 @@
             const encodedUri = encodeURI(csvContent);
             const link = document.createElement("a");
             link.setAttribute("href", encodedUri);
-            link.setAttribute("download", "network_log.csv");
+            link.setAttribute("download", `network_log_${new Date().getTime()}.csv`);
             document.body.appendChild(link);
             link.click();
+            document.body.removeChild(link);
         }
 
-        setInterval(measureLatency, 3000); // เช็คทุก 3 วินาที
+        // เริ่มวัดผลทุกๆ 3 วินาที
+        setInterval(measureLatency, 3000);
+        measureLatency();
     </script>
 </body>
 </html>
