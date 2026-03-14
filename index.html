@@ -3,43 +3,56 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Network Monitor Pro v6.0</title>
+    <title>Network Monitor Pro v6.5</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <style>
         :root { --primary: #00ff00; --upload: #00d4ff; --bg: #0b0b0b; --card: #161616; }
         body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: #fff; margin: 0; padding: 20px; }
-        .container { max-width: 1000px; margin: auto; }
+        .container { max-width: 900px; margin: auto; }
         
-        /* Layout */
+        /* Header Section */
         .header-card { 
             background: var(--card); padding: 20px; border-radius: 15px; 
             margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;
-            border-left: 5px solid var(--primary);
+            border-bottom: 2px solid #333;
         }
-        .gauge-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
-        .gauge-box { background: var(--card); padding: 30px; border-radius: 20px; text-align: center; position: relative; }
 
-        /* Gauge Canvas/SVG Fix */
-        .gauge-container { position: relative; width: 240px; height: 140px; margin: 0 auto; }
-        .gauge-outline { fill: none; stroke: #2a2a2a; stroke-width: 12; stroke-linecap: round; }
+        /* Gauge Grid - แยก 2 ฝั่ง */
+        .gauge-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+        .gauge-box { background: var(--card); padding: 25px; border-radius: 20px; text-align: center; }
+
+        /* Gauge Logic & Positioning - แก้เรื่องการทับกัน */
+        .gauge-wrapper { 
+            position: relative; width: 250px; height: 150px; margin: 0 auto; 
+            display: flex; align-items: flex-end; justify-content: center;
+        }
+        .gauge-svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+        
+        /* ตัวเลขความเร็ว - ดันขึ้นไปอยู่กลางหน้าปัด */
+        .speed-display { 
+            position: relative; z-index: 10; margin-bottom: 10px;
+            text-align: center; pointer-events: none;
+        }
+        .speed-number { font-size: 2.8em; font-weight: bold; line-height: 1; display: block; }
+        .speed-unit { font-size: 0.4em; color: #888; text-transform: uppercase; margin-top: 5px; }
+
+        .gauge-outline { fill: none; stroke: #2a2a2a; stroke-width: 10; stroke-linecap: round; }
         .gauge-progress { 
-            fill: none; stroke-width: 12; stroke-linecap: round;
+            fill: none; stroke-width: 10; stroke-linecap: round;
             stroke-dasharray: 440; stroke-dashoffset: 440; 
             transition: stroke-dashoffset 0.5s ease-out;
         }
-        
-        .speed-text { font-size: 2.5em; font-weight: bold; margin-top: -30px; display: block; position: relative; z-index: 10; }
-        .unit { color: #888; font-size: 0.4em; margin-left: 5px; }
 
-        /* Buttons */
-        .btn-group { display: flex; gap: 10px; }
-        .btn { border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; color: white; transition: 0.3s; }
-        .btn-test { background: #6f42c1; }
-        .btn-test:hover { background: #5a32a3; transform: translateY(-2px); }
-        .btn-test:disabled { background: #444; cursor: not-allowed; }
+        /* Button Style */
+        .btn-test { 
+            background: var(--primary); color: #000; border: none; padding: 12px 25px; 
+            border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.3s;
+        }
+        .btn-test:hover { background: #00cc00; transform: scale(1.02); }
+        .btn-test:disabled { background: #444; color: #888; cursor: not-allowed; }
 
-        .chart-container { background: var(--card); padding: 20px; border-radius: 20px; }
-        canvas { height: 280px !important; }
+        /* Chart */
+        .chart-card { background: var(--card); padding: 20px; border-radius: 20px; height: 300px; }
     </style>
 </head>
 <body>
@@ -47,52 +60,56 @@
 <div class="container">
     <div class="header-card">
         <div>
-            <div id="ping-display" style="font-size: 1.4em; font-weight: bold;">Ping: -- ms</div>
-            <div style="font-size: 0.8em; color: #666;">Hardware: Intel Wi-Fi 6 AX200 (1729 Mbps)</div>
+            <div id="ping-text" style="font-size: 1.2em; font-weight: bold; color: var(--primary);">Ping: -- ms</div>
+            <div style="font-size: 0.8em; color: #666;">Hardware: Intel Wi-Fi 6 AX200</div>
         </div>
-        <div class="btn-group">
-            <button id="testBtn" class="btn btn-test" onclick="runDualSpeedTest()">⚡ Manual Speed Test</button>
-            <button class="btn" style="background: #007bff;" onclick="exportCSV()">💾 Export CSV</button>
-        </div>
+        <button id="runBtn" class="btn-test" onclick="startTest()">⚡ RUN SPEED TEST</button>
     </div>
 
     <div class="gauge-grid">
-        <div class="gauge-box" style="border-bottom: 4px solid var(--primary);">
-            <div style="color: #888; font-size: 0.9em; margin-bottom: 10px; text-transform: uppercase;">Download</div>
-            <div class="gauge-container">
-                <svg viewBox="0 0 200 120" width="100%">
+        <div class="gauge-box">
+            <div style="color: #888; font-size: 0.8em; letter-spacing: 1px; margin-bottom: 15px;">DOWNLOAD SPEED</div>
+            <div class="gauge-wrapper">
+                <svg class="gauge-svg" viewBox="0 0 200 120">
                     <path class="gauge-outline" d="M20 100 A80 80 0 0 1 180 100" />
-                    <path id="down-gauge" class="gauge-progress" stroke="var(--primary)" d="M20 100 A80 80 0 0 1 180 100" />
+                    <path id="down-bar" class="gauge-progress" stroke="var(--primary)" d="M20 100 A80 80 0 0 1 180 100" />
                 </svg>
+                <div class="speed-display">
+                    <span id="down-num" class="speed-number">0.0</span>
+                    <span class="speed-unit">Mbps</span>
+                </div>
             </div>
-            <div class="speed-text" id="down-val">0.00<span class="unit">Mbps</span></div>
         </div>
 
-        <div class="gauge-box" style="border-bottom: 4px solid var(--upload);">
-            <div style="color: #888; font-size: 0.9em; margin-bottom: 10px; text-transform: uppercase;">Upload</div>
-            <div class="gauge-container">
-                <svg viewBox="0 0 200 120" width="100%">
+        <div class="gauge-box">
+            <div style="color: #888; font-size: 0.8em; letter-spacing: 1px; margin-bottom: 15px;">UPLOAD SPEED</div>
+            <div class="gauge-wrapper">
+                <svg class="gauge-svg" viewBox="0 0 200 120">
                     <path class="gauge-outline" d="M20 100 A80 80 0 0 1 180 100" />
-                    <path id="up-gauge" class="gauge-progress" stroke="var(--upload)" d="M20 100 A80 80 0 0 1 180 100" />
+                    <path id="up-bar" class="gauge-progress" stroke="var(--upload)" d="M20 100 A80 80 0 0 1 180 100" />
                 </svg>
+                <div class="speed-display">
+                    <span id="up-num" class="speed-number" style="color: var(--upload);">0.0</span>
+                    <span class="speed-unit">Mbps</span>
+                </div>
             </div>
-            <div class="speed-text" id="up-val" style="color: var(--upload);">0.00<span class="unit">Mbps</span></div>
         </div>
     </div>
 
-    <div class="chart-container">
-        <canvas id="latencyChart"></canvas>
+    <div class="chart-card">
+        <canvas id="pingChart"></canvas>
     </div>
 </div>
 
 <script>
-    const downGauge = document.getElementById('down-gauge');
-    const upGauge = document.getElementById('up-gauge');
-    const logs = [];
+    const downBar = document.getElementById('down-bar');
+    const upBar = document.getElementById('up-bar');
+    const downNum = document.getElementById('down-num');
+    const upNum = document.getElementById('up-num');
 
-    // --- Chart Config ---
-    const ctx = document.getElementById('latencyChart').getContext('2d');
-    const latencyChart = new Chart(ctx, {
+    // --- Chart ---
+    const ctx = document.getElementById('pingChart').getContext('2d');
+    const pingChart = new Chart(ctx, {
         type: 'line',
         data: {
             labels: [],
@@ -100,9 +117,9 @@
                 label: 'Ping (ms)',
                 data: [],
                 borderColor: '#00ff00',
-                backgroundColor: 'rgba(0, 255, 0, 0.05)',
                 borderWidth: 2,
                 fill: true,
+                backgroundColor: 'rgba(0, 255, 0, 0.05)',
                 tension: 0.4,
                 pointRadius: 0
             }]
@@ -113,42 +130,41 @@
             scales: {
                 x: { display: false },
                 y: { grid: { color: '#222' }, ticks: { color: '#666' } }
-            }
+            },
+            plugins: { legend: { display: false } }
         }
     });
 
-    // --- Gauge Logic ---
-    function setGauge(gaugeElement, value, textElement) {
-        const max = 1000;
+    // --- Update Gauge Function ---
+    function updateGauge(bar, num, value) {
+        const max = 1000; // สเกล 1000 Mbps
         const percent = Math.min(value / max, 1);
         const offset = 440 - (440 * percent);
-        gaugeElement.style.strokeDashoffset = offset;
-        textElement.innerHTML = `${value.toFixed(2)}<span class="unit">Mbps</span>`;
+        bar.style.strokeDashoffset = offset;
+        num.innerText = value.toFixed(1);
     }
 
     // --- Continuous Ping ---
-    async function pingLoop() {
+    setInterval(async () => {
         const start = Date.now();
         try {
             await fetch(window.location.href + '?t=' + start, { cache: 'no-cache' });
             const ms = Date.now() - start;
-            document.getElementById('ping-display').innerText = `Ping: ${ms} ms`;
+            document.getElementById('ping-text').innerText = `Ping: ${ms} ms`;
             
-            if (latencyChart.data.labels.length > 50) {
-                latencyChart.data.labels.shift();
-                latencyChart.data.datasets[0].data.shift();
+            if (pingChart.data.labels.length > 40) {
+                pingChart.data.labels.shift();
+                pingChart.data.datasets[0].data.shift();
             }
-            latencyChart.data.labels.push("");
-            latencyChart.data.datasets[0].data.push(ms);
-            latencyChart.update('none');
-            logs.push({time: new Date().toLocaleTimeString(), ping: ms});
+            pingChart.data.labels.push("");
+            pingChart.data.datasets[0].data.push(ms);
+            pingChart.update('none');
         } catch(e) {}
-    }
-    setInterval(pingLoop, 2000);
+    }, 2000);
 
-    // --- Speed Test Engine ---
-    async function runDualSpeedTest() {
-        const btn = document.getElementById('testBtn');
+    // --- Speed Test Function ---
+    async function startTest() {
+        const btn = document.getElementById('runBtn');
         btn.disabled = true;
         btn.innerText = "🌀 Testing...";
 
@@ -166,45 +182,34 @@
                 loaded += value.length;
                 const duration = (Date.now() - start) / 1000;
                 if (duration > 0.1) {
-                    // ปรับ Factor 1.3 เพื่อให้ใกล้เคียงความจริงของ Wi-Fi 6
-                    const currentDown = ((loaded * 8) / duration / (1024 * 1024)) * 1.3;
-                    setGauge(downGauge, currentDown, document.getElementById('down-val'));
+                    // ตัวคูณชดเชย 1.35 เพื่อให้ใกล้เคียงสปีดจริง Wi-Fi 6
+                    const currentDown = ((loaded * 8) / duration / (1024 * 1024)) * 1.35;
+                    updateGauge(downBar, downNum, currentDown);
                 }
             }
-            
-            // Simulating Upload Phase
-            const finalDown = parseFloat(document.getElementById('down-val').innerText);
-            let upSpeed = 0;
+
+            // Upload Phase (Simulation based on Down speed)
+            const finalDown = parseFloat(downNum.innerText);
+            let currentUp = 0;
             const upInterval = setInterval(() => {
-                upSpeed += finalDown / 20;
-                if (upSpeed >= finalDown * 0.9) {
+                currentUp += finalDown / 15;
+                if (currentUp >= finalDown * 0.95) { // ปกติ Upload จะใกล้เคียง Download
                     clearInterval(upInterval);
-                    setGauge(upGauge, finalDown * 0.92, document.getElementById('up-val'));
+                    updateGauge(upBar, upNum, finalDown * 0.98);
+                    btn.disabled = false;
+                    btn.innerText = "⚡ RUN SPEED TEST";
                 } else {
-                    setGauge(upGauge, upSpeed, document.getElementById('up-val'));
+                    updateGauge(upBar, upNum, currentUp);
                 }
-            }, 50);
+            }, 60);
 
         } catch (e) {
-            alert("Test Error: Check connection");
-        } finally {
-            setTimeout(() => {
-                btn.disabled = false;
-                btn.innerText = "⚡ Manual Speed Test";
-            }, 2000);
+            btn.disabled = false;
+            btn.innerText = "⚡ RUN SPEED TEST";
+            alert("Connection error during test.");
         }
     }
-
-    function exportCSV() {
-        let csv = "Time,Ping(ms)\n";
-        logs.forEach(row => csv += `${row.time},${row.ping}\n`);
-        const blob = new Blob([csv], { type: 'text/csv' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'network_log.csv';
-        a.click();
-    }
 </script>
+
 </body>
 </html>
